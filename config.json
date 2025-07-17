@@ -1,0 +1,20 @@
+{
+  "app_name": "Chandan AI Assistant",
+  "version": "1.0.0",
+  "backend_url": "http://localhost:8000",
+  "frontend_url": "http://localhost:3000",
+  "memory_enabled": true,
+  "voice_enabled": false,
+  "file_processing_enabled": true,
+  "ai_models": {
+    "default": "built-in",
+    "ollama_enabled": false
+  },
+  "features": {
+    "authentication": true,
+    "chat": true,
+    "memory": true,
+    "files": true,
+    "voice": false
+  }
+}

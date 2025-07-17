@@ -1,0 +1,31 @@
+[
+  {
+    "fact": "Test memory item",
+    "category": "verification",
+    "timestamp": "2025-07-12T08:39:22.068948"
+  },
+  {
+    "timestamp": "2025-07-12T09:10:00.169582",
+    "fact": "Test memory item",
+    "category": "verification",
+    "importance": "high"
+  },
+  {
+    "timestamp": "2025-07-12T09:15:32.397718",
+    "fact": "Test memory item",
+    "category": "verification",
+    "importance": "high"
+  },
+  {
+    "timestamp": "2025-07-12T09:26:22.338563",
+    "fact": "Test memory item",
+    "category": "verification",
+    "importance": "high"
+  },
+  {
+    "timestamp": "2025-07-12T09:56:18.218293",
+    "fact": "Test memory item",
+    "category": "verification",
+    "importance": "high"
+  }
+]

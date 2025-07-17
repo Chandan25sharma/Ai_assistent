@@ -1,0 +1,20 @@
+{
+  "name": "Sorma AI",
+  "auth_phrase": "sorma",
+  "auth_phrases": [
+    "sorma",
+    "sorma-ai",
+    "chandan",
+    "unlock agent chandan"
+  ],
+  "voice_id": "sorma_voice_01",
+  "preferences": {
+    "communication_style": "professional yet friendly",
+    "response_length": "concise",
+    "voice_enabled": true,
+    "language": "english"
+  },
+  "created_date": "2025-07-10",
+  "last_access": "2025-07-12T09:55:03.914179",
+  "access_level": "owner"
+}
