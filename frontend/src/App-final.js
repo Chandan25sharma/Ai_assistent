@@ -14,7 +14,7 @@ const SormaNavbar = ({ onToggleSidebar, onLogout, systemStatus }) => {
   const getStatusInfo = (status) => {
     if (!status) return { color: 'bg-gray-400', text: 'Unknown' };
     
-    const { internet_available, ai_models, voice_info } = status;
+    const { internet_available, ai_models } = status;
     
     if (ai_models?.ollama_available) {
       return { color: 'bg-green-500', text: 'Ollama Online' };

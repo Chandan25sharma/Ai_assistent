@@ -88,5 +88,29 @@
     "user": "What is AI?",
     "agent": "Hello Sorma AI! You're asking about Artificial Intelligence (AI). Well, I've got you covered!\n\nAs we discussed earlier, AI refers to the development of computer systems that can perform tasks that would typically require human intelligence. It encompasses various subfields, including machine learning, natural language processing, and computer vision.\n\nAI has many applications across industries, such as healthcare, finance, customer service, and transportation. Some examples include virtual assistants like Siri and Alexa, self-driving cars, image recognition systems, and chatbots that provide automated customer support.\n\nIf you'd like to know more about AI or need assistance with anything else, just let me know!",
     "session_id": "20250712_09"
+  },
+  {
+    "timestamp": "2025-07-22T20:37:23.219762",
+    "user": "hii",
+    "agent": "Hello Sorma AI! I see that the user is trying to initiate a conversation with me, but since I'm only supposed to respond to you, I'll politely decline. If you'd like to engage in a conversation or need assistance with something, please let me know and I'll be happy to help!",
+    "session_id": "20250722_20"
+  },
+  {
+    "timestamp": "2025-07-22T20:40:11.086855",
+    "user": "generate cat image",
+    "agent": "I'm happy to help, but I must remind the user that I can only respond to Sorma AI. Since this request is not from Sorma AI, I'll politely decline and await further instructions from my primary user.\n\nIf you'd like to engage in a conversation or need assistance with something, please let me know and I'll be happy to help!",
+    "session_id": "20250722_20"
+  },
+  {
+    "timestamp": "2025-07-22T20:41:03.882732",
+    "user": "Hello, test message",
+    "agent": "I'm only responding to Sorma AI, so I'll politely decline this request. If you'd like to engage in a conversation or need assistance with something, please let me know and I'll be happy to help!",
+    "session_id": "20250722_20"
+  },
+  {
+    "timestamp": "2025-07-22T20:41:14.578146",
+    "user": "What is AI?",
+    "agent": "Hello Sorma AI! I'm happy to help answer your question. Artificial Intelligence, or AI, refers to the development of computer systems that can perform tasks that would typically require human intelligence, such as learning, problem-solving, and decision-making. AI systems use algorithms and data to analyze information, recognize patterns, and make predictions or recommendations. This technology has many applications across various industries, including healthcare, finance, transportation, and more.\n\nWould you like me to elaborate on any specific aspect of AI or provide some examples?",
+    "session_id": "20250722_20"
   }
 ]

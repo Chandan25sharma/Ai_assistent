@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+
 import { 
-  Cog6ToothIcon, 
+ 
   BellIcon, 
   ShieldCheckIcon,
   MicrophoneIcon,
@@ -31,7 +31,7 @@ const SettingsPage = () => {
   useEffect(() => {
     fetchSystemStatus();
     loadSettings();
-  }, []);
+  },);
 
   const fetchSystemStatus = async () => {
     try {

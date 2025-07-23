@@ -22,12 +22,9 @@ class AuthManager:
         if not self.owner_data:
             return False
         
-        auth_phrase = self.owner_data.get("auth_phrase", "").lower()
-        owner_name = self.owner_data.get("name", "").lower()
+        input_lower = input_text.lower().strip()
         
-        input_lower = input_text.lower()
-        
-        # Check for auth phrase
+        # Check for auth phrases from owner data
         auth_phrases = self.owner_data.get("auth_phrases", [])
         if not auth_phrases:
             # Fallback to single auth phrase
@@ -35,19 +32,28 @@ class AuthManager:
             if auth_phrase:
                 auth_phrases = [auth_phrase]
         
-        # Check all auth phrases
+        # Check all auth phrases (exact match or contains)
         for phrase in auth_phrases:
-            if phrase.lower() in input_lower:
+            phrase_lower = phrase.lower().strip()
+            if phrase_lower == input_lower or phrase_lower in input_lower:
+                print(f"✅ Auth successful with phrase: '{phrase}'")
                 return True
         
         # Check for owner name
+        owner_name = self.owner_data.get("name", "").lower()
         if owner_name and any(part in input_lower for part in owner_name.split()):
+            print(f"✅ Auth successful with owner name")
             return True
         
         # Check for wake words
         wake_words = ["chandan", "agent", "assistant", "sorma", "sorma-ai"]
         if any(word in input_lower for word in wake_words):
+            print(f"✅ Auth successful with wake word")
             return True
+        
+        print(f"❌ Auth failed for input: '{input_text}'")
+        print(f"Available auth phrases: {auth_phrases}")
+        return False
         
         return False
     

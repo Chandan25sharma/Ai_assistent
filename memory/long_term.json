@@ -27,5 +27,11 @@
     "fact": "Test memory item",
     "category": "verification",
     "importance": "high"
+  },
+  {
+    "timestamp": "2025-07-22T20:42:30.287830",
+    "fact": "Test memory item",
+    "category": "verification",
+    "importance": "high"
   }
 ]
