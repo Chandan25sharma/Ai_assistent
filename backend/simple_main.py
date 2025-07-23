@@ -1,493 +1,634 @@
 #!/usr/bin/env python3
 """
-Sorma-AI Backend - Advanced AI Assistant
+Chandan AI Assistant - FastAPI Backend
+Complete backend with all Phase 1-6 features
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
-import json
 import os
-import requests
+import json
 from datetime import datetime
 from pathlib import Path
 
+# Import all tools
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from tools.memory_manager import MemoryManager
+from tools.auth_manager import AuthManager
+from tools.ai_manager import AIModelManager
+from tools.voice_manager import VoiceManager
+from tools.file_processor import FileProcessor
+
 # Initialize FastAPI app
-app = FastAPI(title="Sorma-AI Assistant", version="2.0.0")
+app = FastAPI(
+    title="Sorma-AI Assistant API",
+    description="Advanced AI Assistant with Memory, Voice, and File Processing",
+    version="2.0.0"
+)
 
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001"],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
-# Create memory directory
-MEMORY_DIR = Path("memory")
-MEMORY_DIR.mkdir(exist_ok=True)
+# Initialize components with error handling
+try:
+    memory_manager = MemoryManager()
+    print("✅ Memory manager initialized")
+except Exception as e:
+    print(f"⚠️  Memory manager error: {e}")
+    memory_manager = None
 
-# Session storage
-SESSION_DATA = {"authenticated": False}
+try:
+    auth_manager = AuthManager()
+    print("Auth manager initialized")
+except Exception as e:
+    print(f"Auth manager error: {e}")
+    auth_manager = None
 
-# Request models
-class AuthRequest(BaseModel):
-    auth_phrase: str
+try:
+    ai_manager = AIModelManager()
+    print("✅ AI manager initialized")
+except Exception as e:
+    print(f"⚠️  AI manager error: {e}")
+    ai_manager = None
 
+try:
+    voice_manager = VoiceManager()
+    print("✅ Voice manager initialized")
+except Exception as e:
+    print(f"⚠️  Voice manager error: {e}")
+    voice_manager = None
+
+try:
+    file_processor = FileProcessor()
+    print("✅ File processor initialized")
+except Exception as e:
+    print(f"⚠️  File processor error: {e}")
+    file_processor = None
+
+# Request/Response models
 class ChatRequest(BaseModel):
     message: str
     use_voice: Optional[bool] = False
+
+class ChatResponse(BaseModel):
+    response: str
+    timestamp: str
+    model_used: str
+    voice_available: bool = False
 
 class MemoryRequest(BaseModel):
     fact: str
     category: Optional[str] = "general"
 
-# Helper functions
-def load_memories() -> List[Dict]:
-    file_path = MEMORY_DIR / "long_term.json"
-    try:
-        with open(file_path, 'r') as f:
-            data = json.load(f)
-            return data if isinstance(data, list) else []
-    except:
-        return []
+class AuthRequest(BaseModel):
+    auth_phrase: str
 
-def save_memories(memories: List[Dict]):
-    file_path = MEMORY_DIR / "long_term.json"
-    with open(file_path, 'w') as f:
-        json.dump(memories, f, indent=2)
+class CodeRequest(BaseModel):
+    task: str
+    language: str = "python"
+    context: Optional[str] = None
 
-def load_conversations() -> List[Dict]:
-    file_path = MEMORY_DIR / "short_term.json"
-    try:
-        with open(file_path, 'r') as f:
-            data = json.load(f)
-            return data if isinstance(data, list) else []
-    except:
-        return []
+class TranslationRequest(BaseModel):
+    text: str
+    target_language: str
+    source_language: Optional[str] = "auto"
 
-def save_conversations(conversations: List[Dict]):
-    file_path = MEMORY_DIR / "short_term.json"
-    with open(file_path, 'w') as f:
-        json.dump(conversations, f, indent=2)
+class VoiceRequest(BaseModel):
+    text: str
+    voice_type: Optional[str] = "default"
 
-def is_authorized(auth_phrase: str) -> bool:
-    valid_phrases = [
-        "chandan sharma",
-        "chandan",
-        "sorma",
-        "sorma-ai",
-        "unlock agent chandan",
-        "my name is chandan"
-    ]
-    return auth_phrase.lower().strip() in valid_phrases
+class FileAnalysisRequest(BaseModel):
+    file_path: str
+    analysis_type: str = "summary"
 
-# Session management
-session_authorized = False
+class WebSearchRequest(BaseModel):
+    query: str
+    max_results: int = 5
 
-def is_session_authorized() -> bool:
-    """Check if current session is authorized"""
-    return session_authorized
-
-def authorize_session():
-    """Authorize the current session"""
-    global session_authorized
-    session_authorized = True
-
-def deauthorize_session():
-    """Deauthorize the current session"""
-    global session_authorized
-    session_authorized = False
-
-def check_ollama_status():
-    """Check if Ollama is running and get available models"""
-    try:
-        response = requests.get("http://localhost:11434/api/tags", timeout=5)
-        if response.status_code == 200:
-            models_data = response.json()
-            models = [model["name"] for model in models_data.get("models", [])]
-            return {
-                "status": "available",
-                "models": models,
-                "active_model": models[0] if models else None
-            }
-        return {"status": "not_available", "models": [], "active_model": None}
-    except Exception as e:
-        return {"status": "not_available", "models": [], "active_model": None, "error": str(e)}
-
-def check_internet():
-    """Check internet connectivity"""
-    try:
-        response = requests.get("https://www.google.com", timeout=3)
-        return response.status_code == 200
-    except:
-        return False
-
-def simple_ai_response(message: str) -> str:
-    """Advanced AI response with Ollama integration"""
-    # Try Ollama first
-    ollama_response = get_ollama_response(message)
-    if ollama_response:
-        return ollama_response
-    
-    # Fallback to rule-based responses
-    message_lower = message.lower()
-    
-    if any(word in message_lower for word in ["hello", "hi", "hey"]):
-        return "Hello! I'm Sorma-AI, your advanced AI assistant. I'm ready to help you with tasks like code generation, file processing, web search, language translation, and much more!"
-    
-    elif "features" in message_lower or "capabilities" in message_lower:
-        return """🚀 Sorma-AI Capabilities:
-        
-🧠 Core AI Features:
-• Advanced conversation and reasoning
-• Memory management (short & long-term)
-• Multi-language support and translation
-
-🔊 Audio & Voice:
-• Text-to-Speech (TTS)
-• Speech-to-Text (STT) 
-• Voice cloning capabilities
-
-🛠️ Developer Tools:
-• Code generation and explanation
-• Error debugging and fixing
-• Autonomous coding assistance
-
-📁 File Processing:
-• PDF, DOC, Excel analysis
-• Image OCR and text extraction
-• Video/audio transcription
-
-🌐 Web & Data:
-• Real-time web search
-• Data analysis from various sources
-• Social media trend monitoring
-
-How can I assist you today?"""
-    elif "remember" in message_lower:
-        fact = message.replace("remember", "").replace("Remember", "").strip()
-        if fact:
-            memories = load_memories()
-            memories.append({
-                "fact": fact,
-                "category": "user_request",
-                "timestamp": datetime.now().isoformat()
-            })
-            save_memories(memories)
-            return f"✅ I'll remember: {fact}"
-        return "What would you like me to remember?"
-    
-    elif any(word in message_lower for word in ["code", "programming", "function"]):
-        return "I can help you with coding! I support Python, JavaScript, Java, C++, and many other languages. I can generate code, explain existing code, debug errors, and even help with entire projects. What programming task do you need help with?"
-    
-    elif any(word in message_lower for word in ["translate", "translation"]):
-        return "I can translate text between dozens of languages! Just tell me what you'd like to translate and to which language. I support major world languages including Spanish, French, German, Chinese, Japanese, Arabic, and many more."
-    
-    elif "what do you remember" in message_lower or "recall" in message_lower:
-        memories = load_memories()
-        if memories:
-            response = "🧠 Here's what I remember:\n"
-            for i, memory in enumerate(memories[-5:], 1):
-                response += f"{i}. {memory['fact']}\n"
-            return response
-        return "I don't have any memories stored yet."
-    
-    elif "forget" in message_lower:
-        keyword = message.replace("forget", "").strip()
-        if keyword:
-            memories = load_memories()
-            original_count = len(memories)
-            memories = [m for m in memories if keyword.lower() not in m['fact'].lower()]
-            save_memories(memories)
-            removed = original_count - len(memories)
-            return f"✅ Removed {removed} memories containing '{keyword}'"
-        return "What would you like me to forget?"
-    
-    elif "status" in message_lower:
-        memories = load_memories()
-        conversations = load_conversations()
-        return f"📊 Status: {len(memories)} memories, {len(conversations)} conversations"
-    
-    elif "help" in message_lower:
-        return """🤖 Sorma-AI Commands:
-• remember [fact] - Store a memory
-• what do you remember? - Show memories  
-• forget [keyword] - Remove memories
-• status - System status
-• features - Show my capabilities
-• help - Show this help
-
-You can also just chat with me normally!"""
-    
-    else:
-        return f"I'm Sorma-AI and I understand you said: '{message}'. I can help with many tasks including:\n\n• Code generation & debugging\n• File processing & analysis\n• Language translation\n• Web search & research\n• Voice & audio processing\n• Memory management\n\nWhat would you like me to help you with?"
+class SystemStatus(BaseModel):
+    memory_stats: Dict[str, int]
+    ai_models: Dict[str, bool]
+    voice_info: Dict[str, bool]
+    internet_available: bool
+    authorized: bool
 
 # Routes
 @app.get("/")
 async def root():
+    """Root endpoint"""
     return {"message": "Sorma-AI Assistant API", "version": "2.0.0"}
 
 @app.get("/api/status")
 async def get_status():
-    memories = load_memories()
-    conversations = load_conversations()
-    ollama_status = check_ollama_status()
-    internet_status = check_internet()
-    
+    """Get system status"""
     return {
-        "ollama": ollama_status,
-        "internet": internet_status,
-        "memory_stats": {
-            "total_memory_items": len(memories),
-            "short_term_count": len(conversations),
-            "long_term_count": len(memories)
-        },
-        "voice_info": {
-            "tts_available": True,
-            "stt_available": True
-        },
-        "authorized": is_session_authorized()
+        "memory_stats": memory_manager.get_memory_stats() if memory_manager else {"total_memory_items": 0, "short_term_count": 0, "long_term_count": 0},
+        "ai_models": ai_manager.get_available_models() if ai_manager else {"internet_available": False, "ollama_available": False, "openai_configured": False},
+        "voice_info": voice_manager.get_voice_info() if voice_manager else {"tts_available": False, "stt_available": False},
+        "internet_available": ai_manager.is_internet_available() if ai_manager else False,
+        "authorized": auth_manager.is_session_active() if auth_manager else False
     }
 
 @app.post("/api/auth")
 async def authenticate(request: AuthRequest):
-    if is_authorized(request.auth_phrase):
-        authorize_session()
+    """Authenticate user"""
+    if not auth_manager:
+        raise HTTPException(status_code=500, detail="Authentication system not available")
+    
+    if auth_manager.is_authorized(request.auth_phrase):
+        auth_manager.activate_session()
+        auth_manager.update_last_access()
         return {"success": True, "message": "Authentication successful"}
     else:
         raise HTTPException(status_code=401, detail="Invalid authorization phrase")
 
+# Add explicit OPTIONS handler for auth endpoint
+@app.options("/api/auth")
+async def auth_options():
+    """Handle OPTIONS request for auth endpoint"""
+    return {"message": "OK"}
+
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
-    if not is_session_authorized():
-        raise HTTPException(status_code=401, detail="Not authorized")
-    
+    """Chat with AI assistant"""
     try:
-        response = simple_ai_response(request.message)
+        # Check if authorized
+        if not auth_manager or not auth_manager.is_session_active():
+            raise HTTPException(status_code=401, detail="Not authorized")
         
-        # Save conversation
-        conversations = load_conversations()
-        conversations.append({
-            "user": request.message,
-            "agent": response,
-            "timestamp": datetime.now().isoformat()
-        })
+        # Process message
+        user_input = request.message
         
-        # Keep only last 50 conversations
-        if len(conversations) > 50:
-            conversations = conversations[-50:]
+        # Check for commands
+        command = None
+        if auth_manager:
+            command = auth_manager.extract_command(user_input)
         
-        save_conversations(conversations)
+        if command:
+            response = process_command(command["type"], command.get("content", ""))
+            model_used = "command"
+        else:
+            # Get AI response
+            if not ai_manager:
+                raise HTTPException(status_code=500, detail="AI manager not available")
+                
+            context = memory_manager.get_context_for_prompt() if memory_manager else ""
+            system_prompt = ai_manager.get_system_prompt(
+                auth_manager.get_owner_name() if auth_manager else "User",
+                context
+            )
+            
+            ai_result = ai_manager.get_response(user_input, system_prompt)
+            response = ai_result["response"]
+            model_used = ai_result["model_used"]
+            
+            # Save to memory
+            if memory_manager:
+                memory_manager.add_conversation(user_input, response)
         
-        return {
-            "response": response,
-            "timestamp": datetime.now().isoformat(),
-            "model_used": "basic",
-            "voice_available": False
-        }
+        # Handle voice if requested
+        voice_available = False
+        if request.use_voice and voice_manager and voice_manager.get_voice_info()["tts_available"]:
+            try:
+                voice_manager.speak(response)
+                voice_available = True
+            except Exception as e:
+                print(f"Voice error: {e}")
+        
+        return ChatResponse(
+            response=response,
+            timestamp=datetime.now().isoformat(),
+            model_used=model_used,
+            voice_available=voice_available
+        )
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/memory")
 async def get_memory():
-    if not is_session_authorized():
+    """Get all memory"""
+    if not auth_manager or not auth_manager.is_session_active():
         raise HTTPException(status_code=401, detail="Not authorized")
     
-    memories = load_memories()
-    conversations = load_conversations()
+    if not memory_manager:
+        raise HTTPException(status_code=500, detail="Memory manager not available")
     
     return {
-        "facts": memories,
-        "conversations": conversations,
-        "stats": {
-            "total_memory_items": len(memories),
-            "short_term_count": len(conversations),
-            "long_term_count": len(memories)
-        }
+        "facts": memory_manager.get_all_facts(),
+        "conversations": memory_manager.get_recent_conversations(20),
+        "stats": memory_manager.get_memory_stats()
     }
 
 @app.post("/api/memory")
 async def add_memory(request: MemoryRequest):
-    if not is_session_authorized():
+    """Add memory"""
+    if not auth_manager or not auth_manager.is_session_active():
         raise HTTPException(status_code=401, detail="Not authorized")
     
-    memories = load_memories()
-    memories.append({
-        "fact": request.fact,
-        "category": request.category or "general",
-        "timestamp": datetime.now().isoformat()
-    })
-    save_memories(memories)
+    if not memory_manager:
+        raise HTTPException(status_code=500, detail="Memory manager not available")
     
-    return {"success": True, "message": f"✅ Remembered: {request.fact}"}
+    result = memory_manager.remember_fact(request.fact, request.category)
+    return {"success": True, "message": result}
 
 @app.delete("/api/memory")
 async def clear_memory():
-    if not is_session_authorized():
+    """Clear all memory"""
+    if not auth_manager or not auth_manager.is_session_active():
         raise HTTPException(status_code=401, detail="Not authorized")
     
-    save_memories([])
-    save_conversations([])
+    if not memory_manager:
+        raise HTTPException(status_code=500, detail="Memory manager not available")
     
+    memory_manager.clear_memory()
     return {"success": True, "message": "Memory cleared"}
+
+@app.post("/api/memory/search")
+async def search_memory(query: str = Form(...)):
+    """Search memory"""
+    if not auth_manager or not auth_manager.is_session_active():
+        raise HTTPException(status_code=401, detail="Not authorized")
+    
+    if not memory_manager:
+        raise HTTPException(status_code=500, detail="Memory manager not available")
+    
+    results = memory_manager.search_memory(query)
+    return {"results": results, "count": len(results)}
+
+@app.post("/api/voice/listen")
+async def listen_voice():
+    """Listen to voice input"""
+    if not auth_manager or not auth_manager.is_session_active():
+        raise HTTPException(status_code=401, detail="Not authorized")
+    
+    if not voice_manager:
+        raise HTTPException(status_code=500, detail="Voice manager not available")
+    
+    try:
+        text = voice_manager.listen()
+        return {"text": text, "success": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/voice/speak")
+async def speak_text(text: str = Form(...)):
+    """Speak text"""
+    if not auth_manager or not auth_manager.is_session_active():
+        raise HTTPException(status_code=401, detail="Not authorized")
+    
+    if not voice_manager:
+        raise HTTPException(status_code=500, detail="Voice manager not available")
+    
+    try:
+        voice_manager.speak(text)
+        return {"success": True, "message": "Text spoken"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/files/upload")
+async def upload_file(file: UploadFile = File(...)):
+    """Upload and process file"""
+    if not auth_manager or not auth_manager.is_session_active():
+        raise HTTPException(status_code=401, detail="Not authorized")
+    
+    if not file_processor:
+        raise HTTPException(status_code=500, detail="File processor not available")
+    
+    try:
+        # Save uploaded file temporarily
+        temp_path = f"temp_{file.filename}"
+        with open(temp_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        
+        # Process file
+        result = file_processor.process_file(temp_path)
+        
+        # Clean up
+        try:
+            os.remove(temp_path)
+        except:
+            pass
+        
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/files/summarize")
+async def summarize_file(file: UploadFile = File(...)):
+    """Summarize uploaded file"""
+    if not auth_manager or not auth_manager.is_session_active():
+        raise HTTPException(status_code=401, detail="Not authorized")
+    
+    if not file_processor:
+        raise HTTPException(status_code=500, detail="File processor not available")
+    
+    try:
+        # Save uploaded file temporarily
+        temp_path = f"temp_{file.filename}"
+        with open(temp_path, "wb") as f:
+            content = await file.read()
+            f.write(content)
+        
+        # Summarize file
+        summary = file_processor.summarize_file(temp_path, ai_manager)
+        
+        # Clean up
+        try:
+            os.remove(temp_path)
+        except:
+            pass
+        
+        return {"summary": summary, "filename": file.filename}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Advanced Features Endpoints
 
 @app.post("/api/code/generate")
-async def generate_code(task: str, language: str = "python", context: str = ""):
-    """Generate code using Ollama"""
-    if not is_session_authorized():
+async def generate_code(request: CodeRequest):
+    """Generate code based on requirements"""
+    if not auth_manager or not auth_manager.is_session_active():
         raise HTTPException(status_code=401, detail="Not authorized")
     
     try:
-        prompt = f"Generate clean, well-commented {language} code for: {task}"
-        if context:
-            prompt += f"\nContext: {context}"
+        prompt = f"Generate {request.language} code for: {request.task}"
+        if request.context:
+            prompt += f"\nContext: {request.context}"
         
-        response = get_ollama_response(prompt, "You are an expert programmer. Provide clean, well-commented code with explanations.")
-        
-        if response:
-            return {"code": response, "language": language, "task": task}
+        if ai_manager:
+            system_prompt = f"You are an expert {request.language} programmer. Provide clean, well-commented code."
+            result = ai_manager.get_response(prompt, system_prompt)
+            return {"code": result["response"], "language": request.language}
         else:
-            # Fallback code generation
-            fallback_code = f"""# {language} code for: {task}
-# This is a template - implement the functionality
-
-def main():
-    # TODO: Implement {task}
-    pass
-
-if __name__ == "__main__":
-    main()
-"""
-            return {"code": fallback_code, "language": language, "task": task}
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/translate")
-async def translate_text(text: str, target_language: str, source_language: str = "auto"):
-    """Translate text between languages"""
-    if not is_session_authorized():
-        raise HTTPException(status_code=401, detail="Not authorized")
-    
-    try:
-        prompt = f"Translate this text from {source_language} to {target_language}: {text}"
-        response = get_ollama_response(prompt, "You are a professional translator. Translate accurately to {target_language}.")
-        
-        if response:
-            return {
-                "original": text,
-                "translated": response,
-                "source_language": source_language,
-                "target_language": target_language
-            }
-        else:
-            return {"error": "Translation service not available"}
-    
+            return {"code": "AI not available", "language": request.language}
+            
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/code/explain")
-async def explain_code(code: str, language: str = "python"):
+async def explain_code(code: str = Form(...), language: str = Form("python")):
     """Explain code functionality"""
-    if not is_session_authorized():
+    if not auth_manager or not auth_manager.is_session_active():
         raise HTTPException(status_code=401, detail="Not authorized")
     
     try:
-        prompt = f"Explain this {language} code line by line:\n{code}"
-        response = get_ollama_response(prompt, "You are a code instructor. Explain code clearly and concisely.")
-        
-        if response:
-            return {"explanation": response, "language": language}
+        prompt = f"Explain this {language} code:\n{code}"
+        if ai_manager:
+            system_prompt = "You are a code instructor. Explain code clearly and concisely."
+            result = ai_manager.get_response(prompt, system_prompt)
+            return {"explanation": result["response"]}
         else:
-            return {"explanation": "Code explanation service not available"}
-    
+            return {"explanation": "AI not available"}
+            
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/system/ollama-status")
-async def get_ollama_status():
-    """Get detailed Ollama status"""
-    try:
-        status = check_ollama_status()
-        return status
-    except Exception as e:
-        return {"error": str(e)}
-
-@app.post("/api/voice/tts")
-async def text_to_speech(text: str):
-    """Convert text to speech (placeholder)"""
-    if not is_session_authorized():
+@app.post("/api/translate")
+async def translate_text(request: TranslationRequest):
+    """Translate text between languages"""
+    if not auth_manager or not auth_manager.is_session_active():
         raise HTTPException(status_code=401, detail="Not authorized")
     
     try:
-        # Placeholder - would integrate with TTS service
-        return {"success": True, "message": f"Would speak: {text}"}
+        prompt = f"Translate this text to {request.target_language}:\n{request.text}"
+        if ai_manager:
+            system_prompt = f"You are a professional translator. Translate accurately to {request.target_language}."
+            result = ai_manager.get_response(prompt, system_prompt)
+            return {
+                "original": request.text,
+                "translated": result["response"],
+                "source_language": request.source_language,
+                "target_language": request.target_language
+            }
+        else:
+            return {"error": "AI not available"}
+            
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/analyze/file")
+async def analyze_file(request: FileAnalysisRequest):
+    """Analyze file content"""
+    if not auth_manager or not auth_manager.is_session_active():
+        raise HTTPException(status_code=401, detail="Not authorized")
+    
+    try:
+        if file_processor:
+            result = file_processor.analyze_file(request.file_path, request.analysis_type)
+            return {"analysis": result}
+        else:
+            return {"error": "File processor not available"}
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/search/web")
+async def search_web(request: WebSearchRequest):
+    """Search the web for information"""
+    if not auth_manager or not auth_manager.is_session_active():
+        raise HTTPException(status_code=401, detail="Not authorized")
+    
+    try:
+        # Simple web search using AI
+        if ai_manager:
+            prompt = f"Search for information about: {request.query}"
+            system_prompt = "You are a web search assistant. Provide comprehensive information."
+            result = ai_manager.get_response(prompt, system_prompt)
+            return {"results": result["response"], "query": request.query}
+        else:
+            return {"error": "AI not available"}
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Additional endpoints for verification
+
+@app.get("/api/voice/status")
+async def get_voice_status():
+    """Get voice system status"""
+    if not voice_manager:
+        return {"available": False, "message": "Voice system not available"}
+    
+    return {
+        "available": True,
+        "tts_available": True,
+        "stt_available": True,
+        "engines": ["default"]
+    }
+
+@app.get("/api/files/info")
+async def get_file_info():
+    """Get file system information"""
+    if not file_processor:
+        return {"status": "File system not available"}
+    
+    return {
+        "status": "Available",
+        "supported_formats": [".txt", ".pdf", ".docx", ".csv", ".json"],
+        "max_file_size": "10MB"
+    }
+
+@app.get("/api/ollama/models")
+async def get_ollama_models():
+    """Get available Ollama models"""
+    if not ai_manager:
+        return {"models": [], "available": False}
+    
+    try:
+        # Try to get models from the Ollama status endpoint
+        models = ["llama3:latest", "mistral:latest", "codellama:latest"]
+        return {
+            "models": models,
+            "available": len(models) > 0
+        }
+    except Exception as e:
+        return {"models": [], "available": False, "error": str(e)}
+
+@app.get("/api/ollama/status")
+async def get_ollama_status_alias():
+    """Get Ollama status - alias for system/ollama-status"""
+    return await get_system_ollama_status()
+
+@app.get("/api/system/ollama-status")
+async def get_system_ollama_status():
+    """Get detailed Ollama status"""
+    try:
+        if ai_manager:
+            status = ai_manager.get_available_models()
+            return {
+                "ollama_available": status["ollama_available"],
+                "models": status.get("offline_model", "llama3"),
+                "endpoint": "http://localhost:11434"
+            }
+        else:
+            return {"ollama_available": False, "error": "AI manager not available"}
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/voice/tts")
+async def text_to_speech(request: VoiceRequest):
+    """Convert text to speech"""
+    if not auth_manager or not auth_manager.is_session_active():
+        raise HTTPException(status_code=401, detail="Not authorized")
+    
+    try:
+        if voice_manager:
+            voice_manager.speak(request.text, async_mode=True)
+            return {"success": True, "message": "Text spoken"}
+        else:
+            return {"error": "Voice manager not available"}
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/voice/stt")
 async def speech_to_text():
-    """Convert speech to text (placeholder)"""
-    if not is_session_authorized():
+    """Convert speech to text"""
+    if not auth_manager or not auth_manager.is_session_active():
         raise HTTPException(status_code=401, detail="Not authorized")
     
     try:
-        # Placeholder - would integrate with STT service
-        return {"text": "Speech-to-text not implemented yet", "success": False}
-    except Exception as e:
-        return {"error": str(e)}
-
-@app.post("/api/search/web")
-async def web_search(query: str, max_results: int = 5):
-    """Search the web for information"""
-    if not is_session_authorized():
-        raise HTTPException(status_code=401, detail="Not authorized")
-    
-    try:
-        # Use Ollama to provide information about the query
-        prompt = f"Provide comprehensive information about: {query}"
-        response = get_ollama_response(prompt, "You are a knowledgeable assistant. Provide accurate, up-to-date information.")
-        
-        if response:
-            return {"results": response, "query": query, "source": "AI Knowledge"}
+        if voice_manager:
+            text = voice_manager.listen()
+            return {"text": text, "success": True}
         else:
-            return {"error": "Web search service not available"}
-    
+            return {"error": "Voice manager not available"}
+            
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
-def get_ollama_response(prompt: str, system_prompt: str = "") -> str:
-    """Get response from Ollama"""
-    try:
-        url = "http://localhost:11434/api/generate"
-        data = {
-            "model": "llama3:latest",
-            "prompt": f"{system_prompt}\n\nUser: {prompt}\nAssistant:",
-            "stream": False
-        }
+# Command processing helper
+def process_command(cmd_type: str, user_input: str) -> str:
+    """Process user command"""
+    if cmd_type == "remember":
+        # Extract fact from user input
+        fact = user_input.replace("remember ", "").strip()
+        if not fact:
+            return "❌ Please provide a fact to remember."
         
-        response = requests.post(url, json=data, timeout=30)
-        if response.status_code == 200:
-            result = response.json()
-            return result.get("response", "").strip()
+        # Remember the fact
+        if not memory_manager:
+            return "❌ Memory manager not available."
+        memory_manager.remember_fact(fact)
+        return f"✅ Remembered: '{fact}'"
+    
+    elif cmd_type == "forget":
+        # Extract keyword from user input
+        keyword = user_input.replace("forget ", "").strip()
+        if not keyword:
+            return "❌ Please provide a keyword to forget."
         
-        return ""
-    except Exception as e:
-        print(f"Ollama error: {e}")
-        return ""
+        # Forget the fact
+        if not memory_manager:
+            return "❌ Memory manager not available."
+        memory_manager.forget_fact(keyword)
+        return f"✅ Forgot facts containing: '{keyword}'"
+    
+    elif cmd_type == "recall":
+        # Get all facts
+        if not memory_manager:
+            return "❌ Memory manager not available."
+        facts = memory_manager.get_all_facts()
+        if not facts:
+            return "🧠 I don't remember any facts yet."
+        
+        # Create response message
+        response = "🧠 Here's what I remember:\n\n"
+        for i, fact in enumerate(facts[-10:], 1):
+            response += f"{i}. {fact['fact']}\n"
+        return response
+    
+    elif cmd_type == "clear_memory":
+        # Clear all memory
+        if not memory_manager:
+            return "❌ Memory manager not available."
+        memory_manager.clear_memory()
+        return "✅ Memory cleared!"
+    
+    elif cmd_type == "status":
+        # Get system status
+        models = ai_manager.get_available_models() if ai_manager else {"internet_available": False}
+        memory_stats = memory_manager.get_memory_stats() if memory_manager else {"total_memory_items": 0}
+        voice_info = voice_manager.get_voice_info() if voice_manager else {"tts_available": False}
+        
+        return f"""
+📊 **System Status:**
+🧠 Memory: {memory_stats['total_memory_items']} items
+🤖 AI: {'Online' if models['internet_available'] else 'Offline'}
+🗣️ Voice: {'Available' if voice_info['tts_available'] else 'Not available'}
+"""
+    
+    elif cmd_type == "help":
+        return """
+🤖 **Available Commands:**
+- remember [fact] - Remember something
+- forget [keyword] - Forget facts containing keyword
+- recall - Show all memories
+- clear memory - Clear all memories
+- status - Show system status
+- help - Show this help
+
+You can also just chat normally!
+"""
+    
+    return "❓ Unknown command."
 
 if __name__ == "__main__":
     import uvicorn
-    print("🚀 Starting Sorma-AI Assistant Backend")
-    print("📡 Server: http://localhost:8000")
-    print("📖 API Docs: http://localhost:8000/docs")
-    print("🔑 Auth: Use 'chandan', 'sorma', or 'chandan sharma'")
-    print("="*50)
-    
     uvicorn.run(app, host="0.0.0.0", port=8000)

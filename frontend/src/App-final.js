@@ -76,11 +76,11 @@ const SormaNavbar = ({ onToggleSidebar, onLogout, systemStatus }) => {
 // Enhanced Sidebar component
 const SormaSidebar = ({ isOpen, onClose, systemStatus }) => {
   const menuItems = [
-    { name: 'Dashboard', path: '/', icon: '🏠', description: 'Overview & Status' },
-    { name: 'Chat', path: '/chat', icon: '💬', description: 'AI Conversation' },
-    { name: 'Memory', path: '/memory', icon: '🧠', description: 'Knowledge Base' },
-    { name: 'Files', path: '/files', icon: '📁', description: 'File Processing' },
-    { name: 'Settings', path: '/settings', icon: '⚙️', description: 'Configuration' },
+    { name: 'Dashboard', path: '/', icon: '', description: 'Overview & Status' },
+    { name: 'Chat', path: '/chat', icon: '', description: 'AI Conversation' },
+    { name: 'Memory', path: '/memory', icon: '', description: 'Knowledge Base' },
+    { name: 'Files', path: '/files', icon: '', description: 'File Processing' },
+    { name: 'Settings', path: '/settings', icon: '', description: 'Configuration' },
   ];
 
   const currentPath = window.location.pathname;
@@ -96,7 +96,7 @@ const SormaSidebar = ({ isOpen, onClose, systemStatus }) => {
       )}
       
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
+      <div className={`fixed dis inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${
         isOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
@@ -230,7 +230,7 @@ function App() {
 
   return (
     <Router>
-      <div className="min-h-screen bg-gray-50">
+      <div className="max-h-screen bg-gray-50">
         <SormaNavbar
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           onLogout={handleLogout}

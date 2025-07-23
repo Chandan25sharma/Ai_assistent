@@ -15,10 +15,10 @@ const AuthPage = ({ onLogin }) => {
     setIsLoading(true);
     try {
       await ApiService.authenticate(authPhrase);
-      toast.success('✅ Authentication successful!');
+      toast.success(' Authentication successful!');
       onLogin();
     } catch (error) {
-      toast.error('❌ Invalid authorization phrase');
+      toast.error(' Invalid authorization phrase');
     } finally {
       setIsLoading(false);
     }
@@ -62,7 +62,7 @@ const AuthPage = ({ onLogin }) => {
             transition={{ delay: 0.4 }}
             className="text-gray-600"
           >
-            Your Personal AI Assistant - Online/Offline Ready
+            Your Personal AI Assistant - Online and Offline will be soon
           </motion.p>
         </div>
 
@@ -119,12 +119,7 @@ const AuthPage = ({ onLogin }) => {
               >
                 Use "sorma"
               </button>
-              <button
-                onClick={() => quickAuth('sorma-ai')}
-                className="w-full btn btn-secondary text-sm py-2"
-              >
-                Use "sorma-ai"
-              </button>
+             
             </div>
           </div>
 
