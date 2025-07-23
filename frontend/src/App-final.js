@@ -228,24 +228,24 @@ function App() {
     return <AuthPage onLogin={handleLogin} />;
   }
 
-  return (
+     return (
     <Router>
-      <div className="max-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 flex flex-col">
         <SormaNavbar
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           onLogout={handleLogout}
           systemStatus={systemStatus}
         />
         
-        <div className="flex">
+        <div className="flex flex-1 overflow-hidden">
           <SormaSidebar 
             isOpen={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
             systemStatus={systemStatus}
           />
           
-          <main className="flex-1 lg:ml-64">
-            <div className="p-6">
+          <main className="flex-1 overflow-auto">
+            <div className="p-6 max-w-7xl mx-auto w-full">
               <Routes>
                 <Route path="/" element={<Dashboard systemStatus={systemStatus} />} />
                 <Route path="/chat" element={<ChatPage />} />
